@@ -39,11 +39,21 @@ export function parseUserAgent(ua = '') {
  * proxy headers (X-Forwarded-For) when trust proxy is enabled.
  */
 export function extractIp(req) {
-    const xff = req.headers['x-forwarded-for'];
+    // Prefer proxy headers (always present behind Vercel/Cloud proxies).
+    const xff = req.headers?.['x-forwarded-for'];
     if (typeof xff === 'string' && xff.length) {
         return xff.split(',')[0].trim();
     }
-    const ip = req.ip || req.socket?.remoteAddress || '';
-    // Normalise IPv6-mapped IPv4 (::ffff:1.2.3.4) and loopback.
+    const realIp = req.headers?.['x-real-ip'];
+    if (typeof realIp === 'string' && realIp.length) return realIp.trim();
+
+    // Fallback for traditional servers. Guarded so a missing socket (serverless)
+    // never throws.
+    let ip = '';
+    try {
+        ip = req.ip || req.socket?.remoteAddress || '';
+    } catch {
+        ip = '';
+    }
     return ip.replace(/^::ffff:/, '').replace(/^::1$/, '127.0.0.1');
 }

@@ -29,7 +29,10 @@ export function createApp(container) {
     const app = express();
 
     app.disable('x-powered-by');
-    app.set('trust proxy', 1);
+    // On Vercel the platform terminates TLS/proxies for us and the raw socket is
+    // absent, so proxy-addr (used by req.ip) crashes. Only enable trust proxy on
+    // a traditional server where a real socket exists.
+    if (!env.serverless) app.set('trust proxy', 1);
 
     // --- Security & performance middleware ---
     app.use(helmet());
@@ -37,17 +40,21 @@ export function createApp(container) {
     app.use(compression()); // gzip responses -> less bandwidth, faster reads
     app.use(express.json({ limit: '1mb' }));
     app.use(express.urlencoded({ extended: true }));
-    if (!env.isProduction) app.use(morgan('dev'));
 
-    // Global rate limit protects against abusive clients / accidental floods.
-    app.use(
-        rateLimit({
-            windowMs: 60_000,
-            max: 600, // generous for ~300 concurrent readers, still bounds abuse
-            standardHeaders: true,
-            legacyHeaders: false,
-        })
-    );
+    // morgan + express-rate-limit both read req.ip (proxy-addr), which is unsafe
+    // on serverless where the request has no socket. Only use them on a real
+    // long-lived server; per-instance rate limiting is meaningless on serverless.
+    if (!env.serverless) {
+        if (!env.isProduction) app.use(morgan('dev'));
+        app.use(
+            rateLimit({
+                windowMs: 60_000,
+                max: 600, // generous for ~300 concurrent readers, still bounds abuse
+                standardHeaders: true,
+                legacyHeaders: false,
+            })
+        );
+    }
 
     // --- Controllers ---
     const controllers = {

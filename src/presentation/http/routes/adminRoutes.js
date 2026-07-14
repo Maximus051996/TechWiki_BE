@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import env from '../../../config/env.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { makeAuthenticate, requireAdmin } from '../middleware/authenticate.js';
@@ -22,16 +23,15 @@ export function buildAdminRouter({ controllers, tokenService }) {
     const authenticate = makeAuthenticate(tokenService);
     const r = Router();
 
-    // Throttle login attempts to blunt brute-force attacks.
-    const loginLimiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 20,
-        standardHeaders: true,
-        legacyHeaders: false,
-    });
+    // Throttle login attempts to blunt brute-force attacks. Disabled on
+    // serverless (rate limiter reads req.ip which has no socket there, and
+    // per-instance counters are meaningless across serverless invocations).
+    const loginGuards = env.serverless
+        ? []
+        : [rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false })];
 
     // --- Auth (public within admin namespace) ---
-    r.post('/auth/login', loginLimiter, validate(authSchemas.login), asyncHandler(auth.login));
+    r.post('/auth/login', ...loginGuards, validate(authSchemas.login), asyncHandler(auth.login));
     r.post('/auth/refresh', asyncHandler(auth.refresh));
 
     // Everything below requires a valid admin token.
