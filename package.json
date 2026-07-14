@@ -3,8 +3,9 @@
     "version": "1.0.0",
     "description": "TechWiki backend API — Clean Architecture, Node.js, MongoDB",
     "type": "module",
+    "main": "src/server.js",
     "engines": {
-        "node": "20.x"
+        "node": ">=20"
     },
     "scripts": {
         "start": "node src/cluster.js",
