@@ -12,7 +12,7 @@ import { MongoVisitorRepository } from './persistence/mongoose/repositories/Mong
 import { BcryptPasswordHasher } from './security/BcryptPasswordHasher.js';
 import { JwtTokenService } from './security/JwtTokenService.js';
 import { LruCache } from './cache/LruCache.js';
-import { WorkerPool } from './concurrency/WorkerPool.js';
+import { WorkerPool, InlineTaskRunner } from './concurrency/WorkerPool.js';
 import { HttpGeoLocator } from './geo/HttpGeoLocator.js';
 
 // Use cases
@@ -34,7 +34,11 @@ import { VisitorUseCases } from '../application/use-cases/visitor/VisitorUseCase
 export function createContainer() {
     // --- Infrastructure services ---
     const cache = new LruCache(env.cache);
-    const taskRunner = new WorkerPool({ size: env.workerPoolSize });
+    // Serverless platforms (Vercel/Lambda) don't reliably support worker threads
+    // and reset between invocations, so fall back to the inline task runner.
+    const taskRunner = env.serverless
+        ? new InlineTaskRunner()
+        : new WorkerPool({ size: env.workerPoolSize });
     const passwordHasher = new BcryptPasswordHasher(10);
     const tokenService = new JwtTokenService(env.jwt);
     const geoLocator = new HttpGeoLocator({ ...env.geo, cache });
@@ -75,7 +79,7 @@ export function createContainer() {
         },
         useCases,
         async dispose() {
-            await taskRunner.destroy();
+            if (typeof taskRunner.destroy === 'function') await taskRunner.destroy();
             cache.clear();
         },
     };

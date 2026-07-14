@@ -16,8 +16,10 @@ export async function connectDatabase() {
 
     connectingPromise = mongoose
         .connect(env.mongoUri, {
-            maxPoolSize: 50, // plenty of concurrent DB ops per worker
-            minPoolSize: 5,
+            // Serverless: keep the pool tiny (many concurrent function instances
+            // each open their own pool, so a large pool exhausts Atlas limits).
+            maxPoolSize: env.serverless ? 5 : 50,
+            minPoolSize: env.serverless ? 0 : 5,
             serverSelectionTimeoutMS: 5_000,
             socketTimeoutMS: 45_000,
         })

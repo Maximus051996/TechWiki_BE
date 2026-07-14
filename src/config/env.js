@@ -26,6 +26,9 @@ function int(name, fallback) {
 const env = {
     nodeEnv: process.env.NODE_ENV ?? 'development',
     isProduction: (process.env.NODE_ENV ?? 'development') === 'production',
+    // True on Vercel/AWS Lambda — switches off clustering + worker threads and
+    // tunes the DB pool for short-lived serverless invocations.
+    serverless: process.env.VERCEL === '1' || process.env.SERVERLESS === 'true',
     port: int('PORT', 4000),
 
     mongoUri: required('MONGODB_URI', 'mongodb://127.0.0.1:27017/techwiki'),
